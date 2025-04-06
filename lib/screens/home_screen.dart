@@ -46,12 +46,27 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, provider, child) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(
-              'Home Cash Flow',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-              ),
+            title: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, size: 28),
+                const SizedBox(width: 8),
+                Text(
+                  'Home Cash Flow',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadTransactions,
+                tooltip: 'Atualizar',
+              ),
+              const SizedBox(width: 8),
+            ],
+            elevation: 0,
           ),
           body: _selectedIndex == 0
               ? _buildHomeContent(provider)
@@ -67,22 +82,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+            elevation: 4,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
             child: const Icon(Icons.add),
           ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           bottomNavigationBar: NavigationBar(
             onDestinationSelected: _onItemTapped,
             selectedIndex: _selectedIndex,
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.home),
-                label: 'Home',
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard),
+                label: 'Dashboard',
               ),
               NavigationDestination(
-                icon: Icon(Icons.calendar_month),
+                icon: Icon(Icons.calendar_month_outlined),
+                selectedIcon: Icon(Icons.calendar_month),
                 label: 'Mensal',
               ),
               NavigationDestination(
-                icon: Icon(Icons.calendar_view_week),
+                icon: Icon(Icons.calendar_view_week_outlined),
+                selectedIcon: Icon(Icons.calendar_view_week),
                 label: 'Semanal',
               ),
             ],
@@ -93,179 +115,426 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeContent(TransactionProvider provider) {
+    final ThemeData theme = Theme.of(context);
+    
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Saldo atual
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+          // Header with balance info
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Saldo Total',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _formatCurrency(provider.balance),
+                  style: GoogleFonts.montserrat(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    _buildBalanceCard(
+                      title: 'Receitas',
+                      value: provider.totalIncome,
+                      color: Colors.green,
+                      icon: Icons.arrow_upward,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildBalanceCard(
+                      title: 'Despesas',
+                      value: provider.totalExpenses,
+                      color: Colors.red,
+                      icon: Icons.arrow_downward,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Quick actions
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ações Rápidas',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.add_circle_outline,
+                      label: 'Nova\nReceita',
+                      onTap: () => _navigateToAddTransaction(true),
+                      color: Colors.green,
+                    ),
+                    _buildActionButton(
+                      icon: Icons.remove_circle_outline,
+                      label: 'Nova\nDespesa',
+                      onTap: () => _navigateToAddTransaction(false),
+                      color: Colors.red,
+                    ),
+                    _buildActionButton(
+                      icon: Icons.pie_chart_outline,
+                      label: 'Relatórios\nMensais',
+                      onTap: () => _onItemTapped(1),
+                      color: theme.colorScheme.primary,
+                    ),
+                    _buildActionButton(
+                      icon: Icons.list_alt,
+                      label: 'Listar\nTransações',
+                      onTap: () => _onItemTapped(2),
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Recent transactions
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Transações Recentes',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    if (provider.transactions.length > 5)
+                      TextButton.icon(
+                        onPressed: () => _onItemTapped(2),
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('Ver todas'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: theme.colorScheme.primary,
+                          textStyle: GoogleFonts.montserrat(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                
+                provider.transactions.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: provider.transactions.length > 5
+                            ? 5
+                            : provider.transactions.length,
+                        itemBuilder: (context, index) {
+                          final transaction = provider.transactions[index];
+                          return _buildTransactionItem(transaction);
+                        },
+                      ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceCard({
+    required String title,
+    required double value,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Saldo Atual',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      color: Colors.grey[700],
+                    title,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
-                    _formatCurrency(provider.balance),
-                    style: GoogleFonts.inter(
-                      fontSize: 32,
+                    _formatCurrency(value),
+                    style: GoogleFonts.montserrat(
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                      color: color,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Receitas',
-                            style: GoogleFonts.inter(
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          Text(
-                            _formatCurrency(provider.totalIncome),
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Despesas',
-                            style: GoogleFonts.inter(
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          Text(
-                            _formatCurrency(provider.totalExpenses),
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: GoogleFonts.montserrat(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
-          
-          // Transações recentes
-          const SizedBox(height: 24),
-          Text(
-            'Transações Recentes',
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.receipt_long,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 16),
-          
-          provider.transactions.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.account_balance_wallet,
-                          size: 48,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Nenhuma transação cadastrada',
-                          style: GoogleFonts.inter(
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Adicione sua primeira transação usando o botão + abaixo',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            color: Colors.grey[500],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: provider.transactions.length > 5
-                      ? 5
-                      : provider.transactions.length,
-                  itemBuilder: (context, index) {
-                    final transaction = provider.transactions[index];
-                    return _buildTransactionItem(transaction);
-                  },
-                ),
-          
-          // Botão para ver todas
-          if (provider.transactions.length > 5)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: Center(
-                child: TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedIndex = 2; // Navigate to weekly view
-                    });
-                  },
-                  child: const Text('Ver todas as transações'),
-                ),
-              ),
+          Text(
+            'Nenhuma transação cadastrada',
+            style: GoogleFonts.montserrat(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Adicione sua primeira transação usando os botões de ação rápida acima',
+            style: GoogleFonts.montserrat(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => _navigateToAddTransaction(true),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('Adicionar Transação'),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTransactionItem(FinancialTransaction transaction) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0),
+    final String formattedDate = DateFormat('dd/MM/yyyy').format(transaction.date);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: transaction.isIncome ? Colors.green : Colors.red,
+        contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: transaction.isIncome 
+                ? Colors.green.withOpacity(0.1) 
+                : Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Icon(
             transaction.isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-            color: Colors.white,
-          ),
-        ),
-        title: Text(transaction.description),
-        subtitle: Text(
-          '${transaction.category} • ${DateFormat('dd/MM/yyyy').format(transaction.date)}',
-        ),
-        trailing: Text(
-          _formatCurrency(transaction.amount),
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.bold,
             color: transaction.isIncome ? Colors.green : Colors.red,
           ),
         ),
+        title: Text(
+          transaction.description,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        subtitle: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                transaction.category,
+                style: GoogleFonts.montserrat(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              formattedDate,
+              style: GoogleFonts.montserrat(
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+        trailing: Text(
+          _formatCurrency(transaction.amount),
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: transaction.isIncome ? Colors.green : Colors.red,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToAddTransaction(bool isIncome) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransactionScreen(initialIsIncome: isIncome),
       ),
     );
   }
